@@ -4,7 +4,7 @@ from scipy.signal import find_peaks
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize
 import time
-
+import cv2
 
 class LaneDetection:
     '''
@@ -28,7 +28,7 @@ class LaneDetection:
         self.lane_boundary2_old = 0
     
 
-    def front2bev(self, front_view_image)
+    def front2bev(self, front_view_image):
         '''
         ##### TODO #####
         This function should transform the front view image to bird-eye-view image.
@@ -40,7 +40,22 @@ class LaneDetection:
             bev_image 320x240x3
 
         '''
+        # Extract region of interest (bottom to horizon)
+        roi = front_view_image[115:240, 0:320]
+        img_height = 125 
+        img_width = 320
+
+        # Matrix of 4 source points
+        src = np.float32([[65, img_height], [305, img_height], [140, 30], [192, 30]])
+        # Matrix of 4 destination points
+        dst = np.float32([[140, img_height], [192, img_height], [140, 30], [192, 30]])
         
+        # Get transformation matrix
+        front_to_bev = cv2.getPerspectiveTransform(src, dst)
+        
+        # Transform
+        bev_image = cv2.warpPerspective(roi, front_to_bev, (img_width, img_height))
+
         return bev_image 
 
 
@@ -57,8 +72,17 @@ class LaneDetection:
             gray_state_image 320x120x1
 
         '''
+        # Get BEV
+        bev = self.front2bev(state_image_full)
+
+        # Cut off car and resise to 320x120
+        bev = bev[0:115, 0:320]
+        bev = cv2.resize(bev, (320, 120))
         
-        return gray_state_image[::-1] 
+        # To gray scale
+        gray_state_image = cv2.cvtColor(bev, cv2.COLOR_BGR2GRAY)
+
+        return gray_state_image[::-1]
 
 
     def edge_detection(self, gray_image):
@@ -76,7 +100,37 @@ class LaneDetection:
             gradient_sum 320x120x1
 
         '''
+        # Normalize to make gradients more clear
+        gray_image = cv2.normalize(gray_image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+
+        Gx = np.array([
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]])
+        Gy = np.array([
+            [-1, -2, -1],
+            [0, 0, 0],
+            [1, 2, 1]])
+
+        gradient_sum = np.zeros((120, 320))
+        # Convolve gradients
+        for row in range(1, gray_image.shape[0]-1):
+            for col in range(1, gray_image.shape[1]-1):
+                Iij = gray_image[row-1:row+2, col-1:col+2]
+                grad_x = np.multiply(Iij, Gx).sum()
+                grad_y = np.multiply(Iij, Gy).sum()
+                grad_mag = (grad_x**2 + grad_y**2)**0.5
+
+                gradient_sum[row, col] = grad_mag if grad_mag > 100 else 0
         
+        for row in range(gradient_sum.shape[0]):
+            peak, _ = find_peaks(gradient_sum[row, :], distance=self.distance_maxima_gradient) 
+            if len(peak) != 0:
+                gradient_sum[row, peak] = 255
+                gradient_sum[row, -peak] = 0
+            else:
+                gradient_sum[row, :] = 0
+
         return gradient_sum
 
 
@@ -94,6 +148,15 @@ class LaneDetection:
             maxima (np.array) 2x Number_maxima
 
         '''
+        argmaxima = np.zeros((2, 1))
+        for row in range(gradient_sum.shape[0]):
+            edges = np.nonzero(gradient_sum[row, :])[0]
+
+            if len(edges) != 0:
+                rowmaxima = np.vstack((edges, np.full(len(edges), row)))
+                argmaxima = np.hstack((argmaxima, rowmaxima))
+        
+        argmaxima = argmaxima[:, 1:]
 
         return argmaxima
 
@@ -144,8 +207,8 @@ class LaneDetection:
             elif argmaxima.shape[0] > 2:
                 # if more than two maxima then take the two lanes next to the car, regarding least square
                 A = np.argsort((argmaxima - self.car_position[0])**2)
-                lane_boundary1_startpoint = np.array([[argmaxima[A[0]],  0]])
-                lane_boundary2_startpoint = np.array([[argmaxima[A[1]],  0]])
+                lane_boundary1_startpoint = np.array([[argmaxima[A[0]], row]])
+                lane_boundary2_startpoint = np.array([[argmaxima[A[1]], row]])
                 lanes_found = True
 
             row += 1
@@ -184,39 +247,41 @@ class LaneDetection:
 
         # if no lane was found,use lane_boundaries of the preceding step
         if lane_found:
-            
-            ##### TODO #####
-            #  in every iteration: 
-            # 1- find maximum/edge with the lowest distance to the last lane boundary point 
-            # 2- append maxium to lane_boundary1_points or lane_boundary2_points
-            # 3- delete maximum from maxima
-            # 4- stop loop if there is no maximum left 
-            #    or if the distance to the next one is too big (>=100)
-
-            # lane_boundary 1
-
-            # lane_boundary 2
-
-            ################
-            
-
-            ##### TODO #####
-            # spline fitting using scipy.interpolate.splprep 
-            # and the arguments self.spline_smoothness
-            # 
-            # if there are more lane_boundary points points than spline parameters 
-            # else use perceding spline
-            if lane_boundary1_points.shape[0] > 4 and lane_boundary2_points.shape[0] > 4:
-
-                # Pay attention: the first lane_boundary point might occur twice
-                # lane_boundary 1
-
-                # lane_boundary 2
+            row_idx = lane_boundary1_points[-1][1]
+            for row in range(row_idx+1, gradient_sum.shape[0]-1):
+                # Boundary 1
+                point = lane_boundary1_points[-1]
+                x = point[1]
+                y = point[0]
+                distances = np.empty(len(np.where(maxima[1, :] == row)[0]))
+                for dist_idx, i in enumerate(np.where(maxima[1, :] == row)[0]):
+                    x_next = maxima[1, i]
+                    y_next = maxima[0, i]
+                    distances[dist_idx] = ((x-x_next)**2 + (y-y_next)**2)**0.5
+                lane_boundary1_points = np.vstack((lane_boundary1_points, maxima[:, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0]]))
+                np.delete(maxima, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0])
                 
+                # Boundary 2
+                point = lane_boundary2_points[-1]
+                x = point[1]
+                y = point[0]
+                distances = np.empty(len(np.where(maxima[1, :] == row)[0]))
+                for dist_idx, i in enumerate(np.where(maxima[1, :] == row)[0]):
+                    x_next = maxima[1, i]
+                    y_next = maxima[0, i]
+                    distances[dist_idx] = ((x-x_next)**2 + (y-y_next)**2)**0.5
+                lane_boundary2_points = np.vstack((lane_boundary2_points, maxima[:, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0]]))
+                np.delete(maxima, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0])
+
+            # fit splines
+            if lane_boundary1_points.shape[0] > 4 and lane_boundary2_points.shape[0] > 4:
+                tck, u = splprep([lane_boundary1_points[:, 0], lane_boundary1_points[:, 1]], s=0)
+                lane_boundary1 = splev(u, tck)
+                tck, u = splprep([lane_boundary2_points[:, 0], lane_boundary2_points[:, 1]], s=0)
+                lane_boundary2 = splev(u, tck)
             else:
                 lane_boundary1 = self.lane_boundary1_old
                 lane_boundary2 = self.lane_boundary2_old
-            ################
 
         else:
             lane_boundary1 = self.lane_boundary1_old
