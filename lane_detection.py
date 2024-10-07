@@ -258,7 +258,10 @@ class LaneDetection:
                     x_next = maxima[1, i]
                     y_next = maxima[0, i]
                     distances[dist_idx] = ((x-x_next)**2 + (y-y_next)**2)**0.5
-                lane_boundary1_points = np.vstack((lane_boundary1_points, maxima[:, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0]]))
+                if len(distances) != 0 and np.min(distances) < 100:
+                    lane_boundary1_points = np.vstack((lane_boundary1_points, maxima[:, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0]]))
+                else: 
+                    lane_boundary1_points = np.vstack((lane_boundary1_points, np.array([y, x+1])))
                 np.delete(maxima, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0])
                 
                 # Boundary 2
@@ -270,15 +273,16 @@ class LaneDetection:
                     x_next = maxima[1, i]
                     y_next = maxima[0, i]
                     distances[dist_idx] = ((x-x_next)**2 + (y-y_next)**2)**0.5
-                lane_boundary2_points = np.vstack((lane_boundary2_points, maxima[:, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0]]))
+                if len(distances) != 0 and np.min(distances) < 100:
+                    lane_boundary2_points = np.vstack((lane_boundary2_points, maxima[:, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0]]))
+                else: 
+                    lane_boundary2_points = np.vstack((lane_boundary2_points, np.array([y, x+1])))
                 np.delete(maxima, np.where(maxima[1, :] == row)[0][distances == np.min(distances)][0])
 
             # fit splines
             if lane_boundary1_points.shape[0] > 4 and lane_boundary2_points.shape[0] > 4:
-                tck, u = splprep([lane_boundary1_points[:, 0], lane_boundary1_points[:, 1]], s=0)
-                lane_boundary1 = splev(u, tck)
-                tck, u = splprep([lane_boundary2_points[:, 0], lane_boundary2_points[:, 1]], s=0)
-                lane_boundary2 = splev(u, tck)
+                lane_boundary1, u = splprep([lane_boundary1_points[:, 0], lane_boundary1_points[:, 1]], s=0)
+                lane_boundary2, u = splprep([lane_boundary2_points[:, 0], lane_boundary2_points[:, 1]], s=0)
             else:
                 lane_boundary1 = self.lane_boundary1_old
                 lane_boundary2 = self.lane_boundary2_old
@@ -305,14 +309,14 @@ class LaneDetection:
         
         plt.gcf().clear()
         plt.imshow(state_image_full[::-1])
-        plt.plot(lane_boundary1_points_points[0], lane_boundary1_points_points[1]+320-self.cut_size, linewidth=5, color='orange')
-        plt.plot(lane_boundary2_points_points[0], lane_boundary2_points_points[1]+320-self.cut_size, linewidth=5, color='orange')
+        plt.plot(lane_boundary1_points_points[0], lane_boundary1_points_points[1]+120-self.cut_size, linewidth=5, color='orange')
+        plt.plot(lane_boundary2_points_points[0], lane_boundary2_points_points[1]+120-self.cut_size, linewidth=5, color='orange')
         if len(waypoints):
             plt.scatter(waypoints[0], waypoints[1]+320-self.cut_size, color='white')
 
         plt.axis('off')
-        plt.xlim((-0.5,95.5))
-        plt.ylim((-0.5,95.5))
+        plt.xlim((-0.5,320)) # 95.5 old max value
+        plt.ylim((-0.5,240))
         plt.gca().axes.get_xaxis().set_visible(False)
         plt.gca().axes.get_yaxis().set_visible(False)
         fig.canvas.flush_events()
