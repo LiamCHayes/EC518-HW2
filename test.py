@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev
-from waypoint_prediction import waypoint_prediction
+from waypoint_prediction import waypoint_prediction, target_speed_prediction
 
 ####################
 # Test LaneDetection
@@ -44,6 +44,7 @@ lane_boundary1, lane_boundary2 = ld.lane_detection(front_img)
 ####################
 
 way_points = waypoint_prediction(lane_boundary1, lane_boundary2, num_waypoints=6, way_type="smooth")
+print('Target speed: ', target_speed_prediction(way_points))
 t = np.linspace(0, 1, 6)
 lane_boundary1_points = np.array(splev(t, lane_boundary1))
 lane_boundary2_points = np.array(splev(t, lane_boundary2))
@@ -51,5 +52,5 @@ lane_boundary2_points = np.array(splev(t, lane_boundary2))
 fig, ax = plt.subplots()
 ax.plot(lane_boundary1_points[0], lane_boundary1_points[1], color='orange')
 ax.plot(lane_boundary2_points[0], lane_boundary2_points[1], color='orange')
-ax.plot(way_points[0], way_points[1], color='blue')
+ax.plot(way_points[0], way_points[1], 'o', color='blue')
 plt.show()

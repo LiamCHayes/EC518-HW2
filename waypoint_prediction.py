@@ -112,6 +112,6 @@ def target_speed_prediction(waypoints, num_waypoints_used=5,
     output:
         target_speed (float)
     '''
-
-
+    target_speed = (max_speed - offset_speed) * np.exp(-exp_constant * abs(num_waypoints_used - 2 - curvature(waypoints))) + offset_speed 
+    
     return target_speed
