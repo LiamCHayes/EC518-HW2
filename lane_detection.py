@@ -26,6 +26,7 @@ class LaneDetection:
         self.distance_maxima_gradient = distance_maxima_gradient
         self.lane_boundary1_old = 0
         self.lane_boundary2_old = 0
+        self.bev_to_front = None
     
 
     def front2bev(self, front_view_image):
@@ -52,6 +53,7 @@ class LaneDetection:
         
         # Get transformation matrix
         front_to_bev = cv2.getPerspectiveTransform(src, dst)
+        self.bev_to_front = cv2.getPerspectiveTransform(dst, src)
         
         # Transform
         bev_image = cv2.warpPerspective(roi, front_to_bev, (img_width, img_height))
