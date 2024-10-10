@@ -43,8 +43,11 @@ class LongitudinalController:
         '''
         
         # define error from set point target_speed to speed 
+        e_t = target_speed - speed
 
         # derive PID elements
+        integral_e = sum(self.speed_history) if sum(self.speed_history) < 10 else 10
+        control = self.KP * e_t + self.KD * (e_t - self.last_control) + self.KI * integral_e
 
         return control
 

@@ -31,8 +31,8 @@ cv2.waitKey(0)
 
 # edge detection
 edge = ld.edge_detection(gray)
-#cv2.imshow("edges", edge)
-#cv2.waitKey(0)
+cv2.imshow("edges", edge)
+cv2.waitKey(0)
 
 # Find maxima gradient
 maxima_gradient = ld.find_maxima_gradient_rowwise(edge)

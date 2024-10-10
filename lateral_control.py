@@ -48,8 +48,9 @@ class LateralController:
         steer = orient_err + np.arctan((k*cross_err)/speed)
 
         # derive damping term
-        D = 0.1
-        steering_angle = steer - D * (steer - steer)
+        D = 0.2
+        steering_angle = steer - D * (steer - self.previous_steering_angle)
+        self.previous_steering_angle = steering_angle
         # clip to the maximum stering angle (0.4) and rescale the steering action space
         return np.clip(steering_angle, -0.4, 0.4) / 0.4
 

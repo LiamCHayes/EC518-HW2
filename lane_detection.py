@@ -209,9 +209,12 @@ class LaneDetection:
             elif argmaxima.shape[0] > 2:
                 # if more than two maxima then take the two lanes next to the car, regarding least square
                 A = np.argsort((argmaxima - self.car_position[0])**2)
-                lane_boundary1_startpoint = np.array([[argmaxima[A[0]], row]])
-                lane_boundary2_startpoint = np.array([[argmaxima[A[1]], row]])
-                lanes_found = True
+                A_left = argmaxima[A][argmaxima[A] < 160]
+                A_right = argmaxima[A][argmaxima[A] > 160]
+                if len(A_left) > 0 and len(A_right) > 0:
+                    lane_boundary1_startpoint = np.array([[A_left[0], row]])
+                    lane_boundary2_startpoint = np.array([[A_right[0], row]])
+                    lanes_found = True
 
             row += 1
             
@@ -283,8 +286,8 @@ class LaneDetection:
 
             # fit splines
             if lane_boundary1_points.shape[0] > 4 and lane_boundary2_points.shape[0] > 4:
-                lane_boundary1, u = splprep([lane_boundary1_points[:, 0], lane_boundary1_points[:, 1]], s=0)
-                lane_boundary2, u = splprep([lane_boundary2_points[:, 0], lane_boundary2_points[:, 1]], s=0)
+                lane_boundary1, u = splprep([lane_boundary1_points[:, 0], lane_boundary1_points[:, 1]], s=50)
+                lane_boundary2, u = splprep([lane_boundary2_points[:, 0], lane_boundary2_points[:, 1]], s=50)
             else:
                 lane_boundary1 = self.lane_boundary1_old
                 lane_boundary2 = self.lane_boundary2_old
@@ -314,7 +317,7 @@ class LaneDetection:
         plt.plot(lane_boundary1_points_points[0], lane_boundary1_points_points[1]+120-self.cut_size, linewidth=5, color='orange')
         plt.plot(lane_boundary2_points_points[0], lane_boundary2_points_points[1]+120-self.cut_size, linewidth=5, color='orange')
         if len(waypoints):
-            plt.scatter(waypoints[0], waypoints[1]+320-self.cut_size, color='white')
+            plt.scatter(waypoints[0], waypoints[1]+120-self.cut_size, color='white')
 
         plt.axis('off')
         plt.xlim((-0.5,320)) # 95.5 old max value
